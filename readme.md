@@ -56,11 +56,11 @@ Java, FileInputStream, FileOutputStream, byte-level file handling
 
 ## Author
 
-Sanket Sadashiv Hajare
-GitHub   : https://github.com/SanketHajare44
-LinkedIn : https://www.linkedin.com/in/sankethajare
+* Sanket Sadashiv Hajare
+* GitHub   : https://github.com/SanketHajare44
+* LinkedIn : https://www.linkedin.com/in/sankethajare
 
 
 ## License
-MIT License © 2026 Sanket Sadashiv Hajare
-This project is licensed under the MIT License. See the LICENSE file for details.
+* MIT License © 2026 Sanket Sadashiv Hajare
+* This project is licensed under the MIT License. See the LICENSE file for details.
