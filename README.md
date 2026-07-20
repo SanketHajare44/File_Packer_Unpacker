@@ -1,33 +1,88 @@
-# File Packer Unpacker 
+# File_Packer_Unpacker
 
-This wraps the original `packer.java` CLI tool in a proper web app:
+A full-stack web application for packing files into a custom binary archive and unpacking them back out — validated with a custom magic number (`SRH3`), fixed-size per-file headers, and XOR-based encoding.
 
-- **backend/** — Spring Boot REST API. `POST /api/pack` accepts multiple files
-  and returns a packed `.srh` archive, byte-for-byte identical in format to
-  what the original `packer.java` produces (same `SRH3` magic number, same
-  100-byte per-file header, same XOR key `0x11`).
-- **frontend/** — React + Tailwind UI: drop a folder or files, see them
-  queued, inspect the exact header bytes that will be written for any file,
-  and pack + download the archive.
-- **cli-reference/** — your original `packer.java` / `unpacker.java`, kept
-  as-is. Archives produced by the web app can still be unpacked with the
-  original `unpacker.java` CLI tool, since the format is unchanged.
+Originally built as a Java CLI tool (`packer.java` / `unpacker.java`), then extended into a complete web application with a Spring Boot REST API and a React frontend, without changing the underlying archive layout — archives created in the browser are fully compatible with the original CLI tools, and vice versa.
 
-## What's implemented
+---
 
-Both directions now work end-to-end in the browser:
+## Screenshots
 
-- **Pack**: drop a folder/files → inspect the live hex-dump of each file's
-  header → pack → download the `.srh` archive (with a persistent
-  "download again" link in case the auto-download gets blocked).
-- **Unpack**: drop a `.srh` archive → it's inspected immediately (names +
-  sizes, no extraction yet) → unpack → download a `.zip` of the decoded
-  files.
+### Pack
 
-Archives are fully compatible with the original CLI tools in
-`cli-reference/` in both directions.
+| Empty state | Files queued |
+|:---:|:---:|
+| ![Pack panel, empty](docs/assets/pack.png) | ![Pack panel, with files queued](docs/assets/pack-selected.png) |
 
-## Running the backend
+### Unpack
+
+| Empty state | Archive inspected |
+|:---:|:---:|
+| ![Unpack panel, empty](docs/assets/unpack.png) | ![Unpack panel, with archive inspected](docs/assets/unpack-selected.png) |
+
+---
+
+## Features
+
+- **Pack** any folder or set of files into a single `.srh` archive, directly from the browser
+- **Unpack** an `.srh` archive back into its original files, downloaded as a `.zip`
+- **Live header preview** — before packing, see the exact 100-byte header (as a hex + ASCII dump) that will be written for any selected file
+- **Archive inspection** — before unpacking, see the file names and sizes contained in an archive without extracting anything
+- **Format-safe validation** — rejects files whose name won't fit the archive's fixed 100-byte header, and rejects corrupted or non-archive files via magic-number and size checks
+- **CLI-compatible** — the original Java CLI tools still work against archives produced by the web app
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Backend | Java 17, Spring Boot 3, Maven |
+| Frontend | React, Vite, Tailwind CSS |
+| Testing | JUnit 5, Spring Boot Test |
+| Original CLI | Java (`packer.java`, `unpacker.java`) |
+
+---
+
+## How the Archive Works
+
+Every packed file starts with a 4-byte **magic number**, `SRH3`. This is not a format name — it's just a fixed signature written at the start of the archive so the unpacker can verify the file before trusting it. When unpacking, the first check is whether those 4 bytes equal `SRH3`; if they don't, the file is rejected immediately as invalid, regardless of what it's named or renamed to.
+
+After the magic number, each packed file is stored as:
+
+```
+[100 bytes]  header — "<filename> <size>" padded with spaces
+[N bytes]    file content, each byte XORed with key 0x11
+```
+
+This layout is unchanged from the original CLI tool, which is why archives are interchangeable between the CLI and the web app in both directions.
+
+---
+
+## Project Structure
+
+```
+File_Packer_Unpacker/
+├── backend/            Spring Boot REST API
+│   └── src/main/java/com/sanket/filepacker/
+│       ├── controller/     REST endpoints (pack, unpack, inspect)
+│       ├── service/        PackerService, UnpackerService
+│       ├── dto/             ArchiveEntry, ExtractedFile
+│       ├── config/          CORS configuration
+│       └── exception/       Global error handling
+├── frontend/           React + Tailwind UI
+│   └── src/
+│       ├── components/      DropZone, FileTable, HexPreview, PackPanel, UnpackPanel
+│       └── utils/            Byte formatting, header hex-dump helpers
+├── cli-reference/      Original packer.java / unpacker.java
+└── docs/assets/        Screenshots
+```
+
+---
+
+## Getting Started
+
+### Backend
 
 Requires JDK 17+ and Maven.
 
@@ -36,57 +91,44 @@ cd backend
 mvn spring-boot:run
 ```
 
-Starts on `http://localhost:8080`. Health check: `GET /api/health`.
+Runs on `http://localhost:8080`. Health check: `GET /api/health`.
 
-### Running the tests
-
-```bash
-cd backend
-mvn test
-```
-
-`PackerServiceTest` and `UnpackerServiceTest` cover: the magic number, the
-exact 100-byte header layout, the XOR encoding, oversized-name rejection,
-multi-file packing, a full pack → unpack round trip, and corrupt/truncated
-archive handling.
-
-## Running the frontend
+### Frontend
 
 Requires Node 18+.
 
 ```bash
 cd frontend
 npm install
-cp .env.example .env   # points VITE_API_URL at the backend
+cp .env.example .env
 npm run dev
 ```
 
-Opens on `http://localhost:5173`. The backend's CORS config
-(`CorsConfig.java`) already allows this origin.
+Runs on `http://localhost:5173`.
 
-## How packing works here
+### Tests
 
-`PackerService.java` is a direct port of your `packer.java` loop:
+```bash
+cd backend
+mvn test
+```
 
-1. Write the 4-byte `SRH3` magic number once, at the start of the archive.
-2. For each file: write a 100-byte header of `"<name> <size>"` padded with
-   spaces (not encrypted), then the file's bytes each XORed with `0x11`.
+Covers the magic number, exact header byte layout, XOR encoding, oversized-name rejection, multi-file packing, a full pack → unpack round trip, and corrupt/truncated archive handling.
 
-The frontend's `HexPreview` component recomputes that same 100-byte header
-client-side (see `src/utils/format.js`) purely for display — it's a
-hex-dump of exactly what the backend will write for the selected file,
-so you can see the format in action before hitting pack.
+---
 
-## Notes / things you may want to extend
+## API
 
-- **Folder upload**: the "choose folder" button uses the
-  `webkitdirectory` attribute (Chrome/Edge support this; Firefox does not
-  fully support folder selection via that attribute, so "choose files"
-  is there as a fallback).
-- **Large uploads**: `application.properties` currently caps requests at
-  500MB total / 200MB per file — adjust if you need more.
-- **Validation**: `PackerService` throws if a file name + size won't fit
-  in the 100-byte header, matching the original format's hard limit.
-- **Deployment**: no Docker/CI included yet — say the word if you want a
-  Dockerfile for the backend or a Vercel/Netlify config for the frontend
-  for your portfolio/resume link.
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/pack` | Packs uploaded files into a `.srh` archive |
+| `POST` | `/api/inspect` | Returns file names/sizes in an archive without extracting |
+| `POST` | `/api/unpack` | Unpacks an archive and returns a `.zip` of the contents |
+| `GET` | `/api/health` | Health check |
+
+---
+
+## Author
+
+**Sanket Sadashiv Hajare**
+[GitHub](https://github.com/SanketHajare44) · [LinkedIn](https://linkedin.com/in/sankethajare)
