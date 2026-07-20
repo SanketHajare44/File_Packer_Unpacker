@@ -12,9 +12,9 @@
     </parent>
 
     <groupId>com.sanket</groupId>
-    <artifactId>File Packer Unpacker</artifactId>
+    <artifactId>file-packer-unpacker</artifactId>
     <version>1.0.0</version>
-    <name>filepacker</name>
+    <name>File_Packer_Unpacker</name>
     <description>Web wrapper around the SRH3 custom file packer/unpacker format</description>
 
     <properties>
