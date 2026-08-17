@@ -4,8 +4,8 @@ import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 /*
-    File Packer Web Application
-    Wraps the SRH3 custom archive format (originally a CLI tool) in a REST API.
+    File Packer Unpacker Web Application
+    Wraps the custom archive format (originally a CLI tool) in a REST API.
     Author: Sanket Sadashiv Hajare
 */
 @SpringBootApplication

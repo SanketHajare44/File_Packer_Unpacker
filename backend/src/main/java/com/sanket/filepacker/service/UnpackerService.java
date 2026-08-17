@@ -22,23 +22,38 @@ public class UnpackerService {
     private static final byte KEY = 0x11;
     private static final int HEADER_SIZE = 100;
 
-    /** Lightweight scan: returns file names + sizes, without decoding any content. */
+    /**
+     * Lightweight scan: returns file names + sizes, without decoding any content.
+     */
     public List<ArchiveEntry> inspect(byte[] archiveBytes) {
         List<ArchiveEntry> entries = new ArrayList<>();
         walk(archiveBytes, (name, size, contentStart) -> entries.add(new ArchiveEntry(name, size)));
         return entries;
     }
 
-    /** Full extraction: returns every file with its content decoded (XOR key reversed). */
+    /**
+     * Full extraction: returns every file with its content decoded (XOR key
+     * reversed).
+     */
     public List<ExtractedFile> unpack(byte[] archiveBytes) {
         List<ExtractedFile> files = new ArrayList<>();
+
         walk(archiveBytes, (name, size, contentStart) -> {
+
+            if (size > Integer.MAX_VALUE) {
+                throw new IllegalArgumentException(
+                        "File is too large to extract into memory: " + name);
+            }
+
             byte[] content = new byte[(int) size];
+
             for (int i = 0; i < size; i++) {
                 content[i] = (byte) (archiveBytes[contentStart + i] ^ KEY);
             }
+
             files.add(new ExtractedFile(name, content));
         });
+
         return files;
     }
 
@@ -62,29 +77,39 @@ public class UnpackerService {
         int count = 0;
 
         while (pos + HEADER_SIZE <= archiveBytes.length) {
-            String header = new String(archiveBytes, pos, HEADER_SIZE, StandardCharsets.US_ASCII).trim();
+            String header = new String(
+                    archiveBytes,
+                    pos,
+                    HEADER_SIZE,
+                    StandardCharsets.US_ASCII).trim();
+
             pos += HEADER_SIZE;
 
             if (header.isEmpty()) {
                 break;
             }
 
-            String[] tokens = header.split(" ");
-            if (tokens.length < 2) {
-                break;
+            int separator = header.lastIndexOf(' ');
+
+            if (separator <= 0 || separator == header.length() - 1) {
+                throw new IllegalArgumentException("Corrupt archive: invalid file header.");
             }
 
-            String name = tokens[0];
+            String name = header.substring(0, separator);
+            String sizeText = header.substring(separator + 1);
+
             long size;
             try {
-                size = Long.parseLong(tokens[1]);
+                size = Long.parseLong(sizeText);
             } catch (NumberFormatException e) {
-                throw new IllegalArgumentException("Corrupt archive: unreadable size for '" + name + "'.");
+                throw new IllegalArgumentException(
+                        "Corrupt archive: unreadable size for '" + name + "'.");
             }
 
             if (size < 0 || pos + size > archiveBytes.length) {
                 throw new IllegalArgumentException(
-                    "Corrupt archive: declared size for '" + name + "' exceeds the remaining data.");
+                        "Corrupt archive: declared size for '" + name +
+                                "' exceeds the remaining data.");
             }
 
             visitor.visit(name, size, pos);
